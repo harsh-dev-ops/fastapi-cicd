@@ -6,11 +6,11 @@ pipeline {
     //     }
     // }
 
-    agent {
+    agent { 
         node {
-            label "docker-agent-builder"
-        }
-    }
+            label 'docker-agent-builer'
+            }
+      }
     
     environment {
         IMAGE_NAME = "fastapi-app"
