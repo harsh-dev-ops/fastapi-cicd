@@ -1,10 +1,16 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:24.0-cli'
-            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_TLS_CERTDIR=""'
-        }
-    }
+    // agent {
+    //     docker {
+    //         image 'docker:24.0-cli'
+    //         args '--privileged -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_TLS_CERTDIR=""'
+    //     }
+    // }
+
+    agent { 
+        node {
+            label 'docker-agent-builder'
+            }
+      }
     
     environment {
         IMAGE_NAME = "fastapi-app"
