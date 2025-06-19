@@ -27,7 +27,7 @@ pipeline {
                     docker.image("${IMAGE_NAME}:${BUILD_ID}").run(
                         "--name ${CONTAINER_NAME} " +
                         "--detach " +
-                        "--publish 0:8000"
+                        "--publish 8000:8000"
                     )
                     
                     // Get assigned host port
