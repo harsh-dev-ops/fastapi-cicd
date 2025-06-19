@@ -8,7 +8,7 @@ pipeline {
 
     agent { 
         node {
-            label 'docker-agent-builer'
+            label 'docker-agent-builder'
             }
       }
     
