@@ -1,0 +1,40 @@
+services:
+  jenkins-docker:
+    image: docker:dind
+    container_name: jenkins-docker
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - jenkins-docker-certs-ca:/certs/ca
+      - jenkins-docker-certs-client:/certs/client
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - jenkins-net
+    command: --tlsverify --tlscacert=/certs/ca/ca.pem --tlscert=/certs/client/cert.pem --tlskey=/certs/client/key.pem
+
+  jenkins-master:
+    image: myjenkins-blueocean:2.515
+    container_name: jenkins-master
+    environment:
+      - DOCKER_HOST=tcp://jenkins-docker:2376
+      - DOCKER_CERT_PATH=/certs/client
+      - DOCKER_TLS_VERIFY=1
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - jenkins-docker-certs-client:/certs/client:ro
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    networks:
+      - jenkins-net
+    depends_on:
+      - jenkins-docker
+
+networks:
+  jenkins-net:
+
+volumes:
+  jenkins-data:
+  jenkins-docker-certs-ca:
+  jenkins-docker-certs-client:
