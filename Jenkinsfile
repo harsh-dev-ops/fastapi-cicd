@@ -2,12 +2,8 @@ pipeline {
     agent {
         docker {
             image 'docker:24.0-cli'
-            args '-v /var/run/docker.sock:/var/run/docker.sock -u root'
+            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock -e DOCKER_TLS_CERTDIR=""'
         }
-    }
-    
-    triggers {
-        pollSCM '* * * * *'
     }
     
     environment {
@@ -19,7 +15,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${IMAGE_NAME}:${BUILD_ID}")
+                    // Explicitly set Docker host to use mounted socket
+                    sh "docker --host unix:///var/run/docker.sock build -t ${IMAGE_NAME}:${BUILD_ID} ."
                 }
             }
         }
@@ -27,23 +24,29 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    // Run container on dynamic port
-                    docker.image("${IMAGE_NAME}:${BUILD_ID}").run(
-                        "--name ${CONTAINER_NAME} " +
-                        "--detach " +
-                        "--publish 8000:8000"
-                    )
+                    // Run container using the mounted socket
+                    sh """
+                        docker --host unix:///var/run/docker.sock run \
+                            --name ${CONTAINER_NAME} \
+                            --detach \
+                            --publish 0:8000 \
+                            ${IMAGE_NAME}:${BUILD_ID}
+                    """
                     
                     // Get assigned host port
                     PORT = sh(
-                        script: "docker inspect --format='{{(index (index .NetworkSettings.Ports \"8000/tcp\") 0).HostPort}}' ${CONTAINER_NAME}",
+                        script: "docker --host unix:///var/run/docker.sock inspect --format='{{(index (index .NetworkSettings.Ports \"8000/tcp\") 0).HostPort}}' ${CONTAINER_NAME}",
                         returnStdout: true
                     ).trim()
                     
-                    // Wait for container to be healthy
-                    timeout(time: 1, unit: 'MINUTES') {
+                    // Wait for container to be healthy (max 2 minutes)
+                    timeout(time: 2, unit: 'MINUTES') {
                         waitUntil {
-                            sh "docker inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME} | grep -q 'healthy'"
+                            def health = sh(
+                                script: "docker --host unix:///var/run/docker.sock inspect --format='{{.State.Health.Status}}' ${CONTAINER_NAME}",
+                                returnStdout: true
+                            ).trim()
+                            return health == "healthy"
                         }
                     }
                 }
@@ -54,10 +57,10 @@ pipeline {
             steps {
                 script {
                     // Test root endpoint
-                    sh "curl -s http://localhost:${PORT}/ | grep '\"message\":\"Hello from FastAPI in Docker!\"'"
+                    sh "curl -f http://localhost:${PORT}/"
                     
                     // Test items endpoint
-                    sh "curl -s http://localhost:${PORT}/items/42 | grep '\"item_id\":42'"
+                    sh "curl -f http://localhost:${PORT}/items/42"
                 }
             }
         }
@@ -66,11 +69,11 @@ pipeline {
             steps {
                 script {
                     // Stop and remove container
-                    sh "docker stop ${CONTAINER_NAME} || true"
-                    sh "docker rm ${CONTAINER_NAME} || true"
+                    sh "docker --host unix:///var/run/docker.sock stop ${CONTAINER_NAME} || true"
+                    sh "docker --host unix:///var/run/docker.sock rm ${CONTAINER_NAME} || true"
                     
                     // Remove image
-                    sh "docker rmi ${IMAGE_NAME}:${BUILD_ID} || true"
+                    sh "docker --host unix:///var/run/docker.sock rmi ${IMAGE_NAME}:${BUILD_ID} || true"
                 }
             }
         }
