@@ -6,6 +6,10 @@ pipeline {
         }
     }
     
+    triggers {
+        pollSCM '* * * * *'
+    }
+    
     environment {
         IMAGE_NAME = "fastapi-app"
         CONTAINER_NAME = "fastapi-test-${BUILD_ID}"
